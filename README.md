@@ -66,10 +66,10 @@ python -m venv .venv
 3. Install dependencies:
 
 ```bash
-pip install streamlit openpyxl pandas pywin32
+pip install -r requirements.txt
 ```
 
-If you do not plan to use Desktop Outlook integration, `pywin32` is optional.
+If you want Desktop Outlook integration on Windows, install `pywin32` separately in that environment.
 
 ## Run the App
 

@@ -2,7 +2,7 @@
 Balance Confirmation – Bulk Email App (Streamlit)
 ==================================================
 Run:
-    pip install streamlit openpyxl pywin32 pandas
+    pip install -r requirements.txt
     streamlit run balance_email_app.py
 """
 
