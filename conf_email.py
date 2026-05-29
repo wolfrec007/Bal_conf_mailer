@@ -388,6 +388,13 @@ with tab2:
                         "amount":  fmt_amount(row.get("Outstanding Balance", 0), row.get("Currency") or "INR"),
                         "include": True,
                     })
+            # Pre-populate Review tab widget state so value= is respected on re-generate
+            for i, d in enumerate(drafts):
+                st.session_state[f"to_{i}"]  = d["to"]
+                st.session_state[f"cc_{i}"]  = d["cc"]
+                st.session_state[f"s_{i}"]   = d["subject"]
+                st.session_state[f"b_{i}"]   = d["body"]
+                st.session_state[f"inc_{i}"] = d["include"]
             st.session_state.drafts = drafts
             st.success(f"Generated {len(drafts)} emails. Go to Review Tab.")
 
