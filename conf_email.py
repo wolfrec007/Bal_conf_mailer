@@ -142,7 +142,7 @@ EMAIL_STYLES = {
     },
 }
 
-def build_html(plain_body, row, cfg, style):
+def build_html(plain_body, row, cfg, style, body_tpl=""):
     """Convert plain-text body to a well-structured HTML email."""
     s = EMAIL_STYLES[style]
     font     = s["font"]
@@ -168,18 +168,18 @@ def build_html(plain_body, row, cfg, style):
     conf_dt  = cfg.get("conf_date", "")
     flow     = "payable to your organisation" if "AP" in str(row.get("Type (AR/AP)", "")).upper() else "receivable from your organisation"
 
-    # Only include a table row if the placeholder was used in the body template
-    # AND the underlying data is present (not a fallback default)
+    # Check the raw template (before resolution) so placeholders are still present
+    tpl = body_tpl if body_tpl else plain_body
     table_rows = []
-    if "{{Party Name}}" in plain_body or party:
+    if "{{Party Name}}" in tpl and party:
         table_rows.append(("Party Name", party))
-    if "{{Outstanding Balance}}" in plain_body:
+    if "{{Outstanding Balance}}" in tpl:
         table_rows.append(("Outstanding Amount", f"<strong>{amount}</strong>"))
-    if "{{Reference / Invoice No.}}" in plain_body and row.get("Reference / Invoice No."):
+    if "{{Reference / Invoice No.}}" in tpl and row.get("Reference / Invoice No."):
         table_rows.append(("Reference", ref))
-    if "{{Due Date}}" in plain_body and row.get("Due Date"):
+    if "{{Due Date}}" in tpl and row.get("Due Date"):
         table_rows.append(("Due Date", due))
-    if "{{Remarks}}" in plain_body and row.get("Remarks"):
+    if "{{Remarks}}" in tpl and row.get("Remarks"):
         table_rows.append(("Remarks", remarks))
 
     tr_html = ""
@@ -487,7 +487,7 @@ with tab2:
                 type_tag = "AP" if "AP" in str(row.get("Type (AR/AP)", "")).upper() else "AR"
                 if type_tag in type_filter and valid_email(row.get("Email ID", "")):
                     plain_body = resolve(st.session_state.body_tpl, row, cfg)
-                    html_body  = build_html(plain_body, row, cfg, email_style)
+                    html_body  = build_html(plain_body, row, cfg, email_style, body_tpl=st.session_state.body_tpl)
                     drafts.append({
                         "party":      row.get("Party Name", ""),
                         "type":       type_tag,
