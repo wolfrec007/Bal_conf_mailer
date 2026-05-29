@@ -315,13 +315,18 @@ def valid_email(e):
     return bool(e and re.match(r"[^@]+@[^@]+\.[^@]+", extract_email(str(e))))
 
 def merge_cc(row_cc, global_cc):
+    """Merge CC addresses from row and global, deduplicated. Returns comma-separated plain addresses."""
     parts = []
     for raw in (row_cc, global_cc):
         for addr in re.split(r"[,;]", str(raw or "")):
-            addr = extract_email(addr)
+            addr = extract_email(addr).strip()
             if addr and addr not in parts:
                 parts.append(addr)
     return ", ".join(parts)
+
+def cc_for_outlook(cc_str):
+    """Outlook expects semicolon-separated addresses for multiple CC recipients."""
+    return "; ".join(a.strip() for a in cc_str.split(",") if a.strip())
 
 def resolve(template, row, cfg):
     result = template
@@ -648,16 +653,18 @@ with tab4:
                 try:
                     if "Desktop" in provider:
                         mail            = outlook.CreateItem(0)
-                        mail.To         = d["to"]
-                        mail.CC         = d.get("cc", "")
-                        mail.Subject    = d["subject"]
-                        mail.Body       = d.get("plain_body", "")  # plain text for copy/paste
-                        mail.HTMLBody   = d["body"]                # HTML rendering
-                        if "Send" in action:
+                        mail.To       = d["to"]
+                        mail.CC       = cc_for_outlook(d.get("cc", ""))
+                        mail.Subject  = d["subject"]
+                        mail.HTMLBody = d["body"]   # sets HTML; do NOT set Body before HTMLBody
+                        if action == "Send Immediately":
                             mail.Send()
+                            pythoncom.PumpWaitingMessages()
                             results.append({"Party": d["party"], "To": d["to"], "CC": d.get("cc",""), "Status": "✅ Sent"})
                         else:
                             mail.Save()
+                            pythoncom.PumpWaitingMessages()
+                            time.sleep(0.3)   # let Outlook flush the draft to store
                             results.append({"Party": d["party"], "To": d["to"], "CC": d.get("cc",""), "Status": "✅ Draft Saved"})
                     else:
                         msg            = MIMEMultipart("alternative")
