@@ -253,13 +253,13 @@ with st.expander("⚙️ Global Configuration", expanded=True):
     st.divider()
     if st.button("💾 Save Config", type="primary"):
         st.session_state.cfg = {
-            "company":       st.session_state.w_company,
-            "signatory":     st.session_state.w_signatory,
-            "reply_to":      st.session_state.w_reply_to,
+            "company":       company_name,
+            "signatory":     signatory,
+            "reply_to":      reply_to_email,
             "conf_date":     conf_date_str,
-            "global_cc":     st.session_state.w_global_cc,
-            "type_filter":   st.session_state.w_type_filter,
-            "send_provider": st.session_state.w_provider,
+            "global_cc":     global_cc,
+            "type_filter":   type_filter,
+            "send_provider": send_provider,
             "email_action":  email_action,
             "smtp_user":     smtp_user,
             "smtp_pass":     smtp_pass,
