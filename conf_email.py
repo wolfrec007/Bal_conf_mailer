@@ -541,17 +541,27 @@ with tab2:
 """)
         st.info("💡 The body text you write here is used to build the HTML email. The balance detail table is always rendered automatically from your data — you don't need to include it manually.")
 
+    # Seed defaults into widget state on first load only
+    if "subject_tpl" not in st.session_state:
+        st.session_state["subject_tpl"] = DEFAULT_SUBJECT
+    if "body_tpl" not in st.session_state:
+        st.session_state["body_tpl"] = DEFAULT_BODY
+
     st.text_input("Subject Template", key="subject_tpl")
     st.text_area("Body Template", key="body_tpl", height=320,
                  help="Write the email body using plain text and placeholders. The balance table and styling are applied automatically.")
 
-    # Live style preview
+    # Live style preview — uses actual current template and a sample row
     if st.session_state.cfg_company:
         with st.expander("👁️ Style Preview", expanded=False):
             sample_row = {"Party Name": "Sample Party Ltd", "Contact Person": "Mr. Sample",
                           "Type (AR/AP)": "AR", "Currency": "INR", "Outstanding Balance": 1234567.89,
                           "Due Date": "31-Mar-2026", "Reference / Invoice No.": "INV-001", "Remarks": "Sample remark"}
-            st.components.v1.html(build_html("", sample_row, cfg, email_style), height=600, scrolling=True)
+            sample_plain = resolve(st.session_state.body_tpl, sample_row, cfg)
+            st.components.v1.html(
+                build_html(sample_plain, sample_row, cfg, email_style, body_tpl=st.session_state.body_tpl),
+                height=600, scrolling=True
+            )
 
     if st.button("🔨 Generate Emails", type="primary", use_container_width=True):
         if not st.session_state.rows:
@@ -619,8 +629,9 @@ with tab4:
         st.warning("No emails selected. Go to Step 3 and check the boxes.")
     else:
         st.write(f"**Ready:** {len(selected)} emails via `{provider}`")
+        btn_label = f"🚀 {action} ({len(selected)} emails)" if "Desktop" in provider else f"🚀 Send ({len(selected)} emails)"
 
-        if st.button(f"🚀 {action} ({len(selected)} emails)", type="primary", use_container_width=True):
+        if st.button(btn_label, type="primary", use_container_width=True):
             if "SMTP" in provider and (not smtp_user or not smtp_pass):
                 st.error("❌ Enter Sender Email and App Password in Configuration.")
                 st.stop()
@@ -652,7 +663,7 @@ with tab4:
                 status.markdown(f"**Sending:** {d['party']} ({idx+1}/{len(selected)})")
                 try:
                     if "Desktop" in provider:
-                        mail            = outlook.CreateItem(0)
+                        mail          = outlook.CreateItem(0)
                         mail.To       = d["to"]
                         mail.CC       = cc_for_outlook(d.get("cc", ""))
                         mail.Subject  = d["subject"]
