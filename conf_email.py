@@ -230,13 +230,6 @@ def build_html(plain_body, row, cfg, style):
      </td>
    </tr>
 
-   <!-- Footer -->
-   <tr>
-     <td style="background:{h_bg};padding:12px 30px;text-align:center;">
-       <p style="margin:0;font-size:11px;color:{h_txt};opacity:0.7;">This is a system-generated balance confirmation email. Please do not reply to this footer.</p>
-     </td>
-   </tr>
-
   </table>
  </td></tr>
 </table>
