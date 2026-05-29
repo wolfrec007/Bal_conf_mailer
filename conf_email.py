@@ -667,15 +667,18 @@ with tab4:
                         mail.To       = d["to"]
                         mail.CC       = cc_for_outlook(d.get("cc", ""))
                         mail.Subject  = d["subject"]
-                        mail.HTMLBody = d["body"]   # sets HTML; do NOT set Body before HTMLBody
+                        mail.HTMLBody = d["body"]
+                        pythoncom.PumpWaitingMessages()
+                        time.sleep(0.2)   # let Outlook fully load the item before acting
                         if action == "Send Immediately":
                             mail.Send()
                             pythoncom.PumpWaitingMessages()
+                            time.sleep(0.3)
                             results.append({"Party": d["party"], "To": d["to"], "CC": d.get("cc",""), "Status": "✅ Sent"})
                         else:
                             mail.Save()
                             pythoncom.PumpWaitingMessages()
-                            time.sleep(0.3)   # let Outlook flush the draft to store
+                            time.sleep(0.3)
                             results.append({"Party": d["party"], "To": d["to"], "CC": d.get("cc",""), "Status": "✅ Draft Saved"})
                     else:
                         msg            = MIMEMultipart("alternative")
