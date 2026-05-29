@@ -51,7 +51,7 @@ PLACEHOLDERS = {
     "{{Company Name}}":            lambda r, cfg: cfg.get("company", ""),
     "{{Signatory}}":               lambda r, cfg: cfg.get("signatory", ""),
     "{{Reply-To Email}}":          lambda r, cfg: cfg.get("reply_to", ""),
-    "{{Flow}}":                    lambda r, cfg: "payable to your organisation" if "AP" in str(r.get("Type (AR/AP)", "")).upper() else "receivable from your organisation",
+    "{{Flow}}":                    lambda r, cfg: cfg.get("flow_ap", "payable to your organisation") if "AP" in str(r.get("Type (AR/AP)", "")).upper() else cfg.get("flow_ar", "receivable from your organisation"),
 }
 
 DEFAULT_SUBJECT = "Balance Confirmation as on {{Confirmation Date}} – {{Party Name}} [Ref: {{Reference / Invoice No.}}]"
@@ -157,8 +157,10 @@ def build_html(plain_body, row, cfg, style, body_tpl=""):
     tr_bg  = s["table_row_bg"];     ta_bg  = s["table_alt_bg"]
     accent = s["accent"];           border = s["border"]
 
-    company = cfg.get("company", "")
-    conf_dt = cfg.get("conf_date", "")
+    company     = cfg.get("company", "")
+    conf_dt     = cfg.get("conf_date", "")
+    header_sub  = cfg.get("header_sub",  "Balance Confirmation")
+    table_title = cfg.get("table_title", "Balance Details")
 
     # ── Table: only include rows whose placeholder is in the raw template ──────
     tpl    = body_tpl if body_tpl else plain_body
@@ -195,7 +197,7 @@ def build_html(plain_body, row, cfg, style, body_tpl=""):
         table_html = f"""
        <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:4px;overflow:hidden;border:1px solid {border};margin:20px 0 24px;font-size:13px;">
          <tr>
-           <th colspan="2" style="background:{th_bg};color:{th_txt};padding:10px 14px;text-align:left;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;">Balance Details</th>
+           <th colspan="2" style="background:{th_bg};color:{th_txt};padding:10px 14px;text-align:left;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;">{table_title}</th>
          </tr>
          {tr_html}
        </table>"""
@@ -279,7 +281,7 @@ def build_html(plain_body, row, cfg, style, body_tpl=""):
    <tr>
      <td style="background:{h_bg};padding:22px 30px;">
        <div style="font-size:18px;font-weight:700;color:{h_txt};letter-spacing:0.3px;">{company}</div>
-       <div style="font-size:12px;color:{h_txt};opacity:0.8;margin-top:3px;">Balance Confirmation &middot; {conf_dt}</div>
+       <div style="font-size:12px;color:{h_txt};opacity:0.8;margin-top:3px;">{header_sub} &middot; {conf_dt}</div>
      </td>
    </tr>
 
@@ -369,6 +371,10 @@ _defaults = {
     "cfg_smtp_pass":   "",
     "cfg_from_name":   "",
     "cfg_style":       "Professional Blue",
+    "cfg_header_sub":  "Balance Confirmation",
+    "cfg_table_title": "Balance Details",
+    "cfg_flow_ar":     "receivable from your organisation",
+    "cfg_flow_ap":     "payable to your organisation",
 }
 for k, v in _defaults.items():
     if k not in st.session_state:
@@ -444,16 +450,29 @@ with col3:
     st.multiselect("Include types", ["AR", "AP"], key="cfg_type_filter")
     st.selectbox("Email Style / Font", list(EMAIL_STYLES.keys()), key="cfg_style",
                  help="Controls font, colours and layout of the HTML email sent to parties.")
+    with st.expander("✏️ Customise Email Labels", expanded=False):
+        st.text_input("Email Header Subtitle",  key="cfg_header_sub",
+                      help="Text shown below company name in the email header.")
+        st.text_input("Balance Table Heading",  key="cfg_table_title",
+                      help="Heading row of the balance details table.")
+        st.text_input("AR Flow Text ({{Flow}} for AR)", key="cfg_flow_ar",
+                      help="Text inserted by {{Flow}} for AR parties.")
+        st.text_input("AP Flow Text ({{Flow}} for AP)", key="cfg_flow_ap",
+                      help="Text inserted by {{Flow}} for AP parties.")
 
 st.divider()
 
 cfg = {
-    "company":   st.session_state.cfg_company,
-    "signatory": st.session_state.cfg_signatory,
-    "reply_to":  st.session_state.cfg_reply_to,
-    "conf_date": st.session_state.cfg_conf_date.strftime("%d %B %Y")
-                 if isinstance(st.session_state.cfg_conf_date, (datetime, date))
-                 else str(st.session_state.cfg_conf_date),
+    "company":     st.session_state.cfg_company,
+    "signatory":   st.session_state.cfg_signatory,
+    "reply_to":    st.session_state.cfg_reply_to,
+    "conf_date":   st.session_state.cfg_conf_date.strftime("%d %B %Y")
+                   if isinstance(st.session_state.cfg_conf_date, (datetime, date))
+                   else str(st.session_state.cfg_conf_date),
+    "header_sub":  st.session_state.cfg_header_sub  or "Balance Confirmation",
+    "table_title": st.session_state.cfg_table_title or "Balance Details",
+    "flow_ar":     st.session_state.cfg_flow_ar     or "receivable from your organisation",
+    "flow_ap":     st.session_state.cfg_flow_ap     or "payable to your organisation",
 }
 global_cc   = st.session_state.cfg_global_cc
 type_filter = st.session_state.cfg_type_filter
