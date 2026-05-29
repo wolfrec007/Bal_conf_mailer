@@ -210,62 +210,62 @@ with help_col:
 | `{{Flow}}` | *"receivable from your organisation"* (AR) or *"payable to your organisation"* (AP) |
 """)
 
-with st.expander("⚙️ Global Configuration", expanded=True):
-    col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+st.markdown('<div class="sec-head">⚙️ Global Configuration</div>', unsafe_allow_html=True)
+col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
 
-    with col_cfg1:
-        st.markdown("**Company Details**")
-        company_name   = st.text_input("Company Name",            placeholder="Horizon Industries",        key="w_company")
-        signatory      = st.text_input("Signatory & Designation", placeholder="Ramesh Verma, CFO",         key="w_signatory")
-        reply_to_email = st.text_input("Reply-To Email",          placeholder="accounts@yourcompany.com",  key="w_reply_to")
-        conf_date      = st.date_input("Confirmation Date",       value=datetime.today(),                  key="w_conf_date")
-        conf_date_str  = conf_date.strftime("%d %B %Y")
+with col_cfg1:
+    st.markdown("**Company Details**")
+    company_name   = st.text_input("Company Name",            placeholder="Horizon Industries",        key="w_company")
+    signatory      = st.text_input("Signatory & Designation", placeholder="Ramesh Verma, CFO",         key="w_signatory")
+    reply_to_email = st.text_input("Reply-To Email",          placeholder="accounts@yourcompany.com",  key="w_reply_to")
+    conf_date      = st.date_input("Confirmation Date",       value=datetime.today(),                  key="w_conf_date")
+    conf_date_str  = conf_date.strftime("%d %B %Y")
 
-    with col_cfg2:
-        st.markdown("**Email Engine & Settings**")
-        send_provider = st.selectbox("Select Email Provider", [
-            "Desktop Outlook App (win32com)",
-            "Gmail (SMTP)",
-            "Office 365 / Outlook (SMTP)"
-        ], key="w_provider")
+with col_cfg2:
+    st.markdown("**Email Engine & Settings**")
+    send_provider = st.selectbox("Select Email Provider", [
+        "Desktop Outlook App (win32com)",
+        "Gmail (SMTP)",
+        "Office 365 / Outlook (SMTP)"
+    ], key="w_provider")
 
-        email_action = "Send"
-        smtp_user = smtp_pass = from_name = ""
+    email_action = "Send"
+    smtp_user = smtp_pass = from_name = ""
 
-        if "Desktop" in send_provider:
-            email_action = st.radio("Action when processed:", ["Save as Drafts", "Send Immediately"], key="w_action")
-        else:
-            st.info("💡 SMTP Connections send emails immediately.")
-            smtp_user = st.text_input("Sender Email Address", placeholder="you@domain.com", key="w_smtp_user")
-            smtp_pass = st.text_input("App Password",  type="password",                     key="w_smtp_pass")
-            from_name = st.text_input("Display Name",  placeholder="Accounts Team",          key="w_from_name")
+    if "Desktop" in send_provider:
+        email_action = st.radio("Action when processed:", ["Save as Drafts", "Send Immediately"], key="w_action")
+    else:
+        st.info("💡 SMTP Connections send emails immediately.")
+        smtp_user = st.text_input("Sender Email Address", placeholder="you@domain.com", key="w_smtp_user")
+        smtp_pass = st.text_input("App Password",  type="password",                     key="w_smtp_pass")
+        from_name = st.text_input("Display Name",  placeholder="Accounts Team",          key="w_from_name")
 
-    with col_cfg3:
-        st.markdown("**Filters & CC**")
-        global_cc = st.text_input(
-            "Global CC (comma-separated)",
-            placeholder="manager@co.com",
-            key="w_global_cc",
-            help="Added to every email. Per-party CC can also be set in the Excel 'CC' column."
-        )
-        type_filter = st.multiselect("Include types", ["AR", "AP"], default=["AR", "AP"], key="w_type_filter")
+with col_cfg3:
+    st.markdown("**Filters & CC**")
+    global_cc = st.text_input(
+        "Global CC (comma-separated)",
+        placeholder="manager@co.com",
+        key="w_global_cc",
+        help="Added to every email. Per-party CC can also be set in the Excel 'CC' column."
+    )
+    type_filter = st.multiselect("Include types", ["AR", "AP"], default=["AR", "AP"], key="w_type_filter")
 
-    st.divider()
-    if st.button("💾 Save Config", type="primary"):
-        st.session_state.cfg = {
-            "company":       company_name,
-            "signatory":     signatory,
-            "reply_to":      reply_to_email,
-            "conf_date":     conf_date_str,
-            "global_cc":     global_cc,
-            "type_filter":   type_filter,
-            "send_provider": send_provider,
-            "email_action":  email_action,
-            "smtp_user":     smtp_user,
-            "smtp_pass":     smtp_pass,
-            "from_name":     from_name,
-        }
-        st.success("✅ Configuration saved.")
+st.divider()
+if st.button("💾 Save Config", type="primary"):
+    st.session_state.cfg = {
+        "company":       company_name,
+        "signatory":     signatory,
+        "reply_to":      reply_to_email,
+        "conf_date":     conf_date_str,
+        "global_cc":     global_cc,
+        "type_filter":   type_filter,
+        "send_provider": send_provider,
+        "email_action":  email_action,
+        "smtp_user":     smtp_user,
+        "smtp_pass":     smtp_pass,
+        "from_name":     from_name,
+    }
+    st.success("✅ Configuration saved.")
 
 # Always use current widget values — saved config is only used when it exists and is non-empty.
 # This prevents global_cc silently becoming "" when the user types but forgets to Save Config.
@@ -331,6 +331,7 @@ with tab1:
 # TAB 2 — TEMPLATE
 # ─────────────────────────────────────────────────────────────────────────────
 with tab2:
+    st.warning(f"DEBUG — saved global_cc=`{st.session_state.cfg.get('global_cc','NOT SET')!r}` | effective=`{effective_global_cc!r}` | w_global_cc=`{st.session_state.get('w_global_cc','NOT SET')!r}`")
     with st.expander("📋 Available Placeholders — click to expand", expanded=False):
         st.markdown("Copy any placeholder into your Subject or Body template. It will be replaced with the matching value for each party when emails are generated.")
         st.markdown("#### From Excel columns")
