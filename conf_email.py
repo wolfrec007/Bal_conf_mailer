@@ -218,7 +218,9 @@ with col_cfg1:
     company_name   = st.text_input("Company Name",            placeholder="Horizon Industries",        key="w_company")
     signatory      = st.text_input("Signatory & Designation", placeholder="Ramesh Verma, CFO",         key="w_signatory")
     reply_to_email = st.text_input("Reply-To Email",          placeholder="accounts@yourcompany.com",  key="w_reply_to")
-    conf_date      = st.date_input("Confirmation Date",       value=datetime.today(),                  key="w_conf_date")
+    if "w_conf_date" not in st.session_state:
+        st.session_state["w_conf_date"] = datetime.today()
+    conf_date      = st.date_input("Confirmation Date", key="w_conf_date")
     conf_date_str  = conf_date.strftime("%d %B %Y")
 
 with col_cfg2:
@@ -248,7 +250,9 @@ with col_cfg3:
         key="w_global_cc",
         help="Added to every email. Per-party CC can also be set in the Excel 'CC' column."
     )
-    type_filter = st.multiselect("Include types", ["AR", "AP"], default=["AR", "AP"], key="w_type_filter")
+    if "w_type_filter" not in st.session_state:
+        st.session_state["w_type_filter"] = ["AR", "AP"]
+    type_filter = st.multiselect("Include types", ["AR", "AP"], key="w_type_filter")
 
 st.divider()
 if st.button("💾 Save Config", type="primary"):
@@ -331,7 +335,7 @@ with tab1:
 # TAB 2 — TEMPLATE
 # ─────────────────────────────────────────────────────────────────────────────
 with tab2:
-    st.warning(f"DEBUG — saved global_cc=`{st.session_state.cfg.get('global_cc','NOT SET')!r}` | effective=`{effective_global_cc!r}` | w_global_cc=`{st.session_state.get('w_global_cc','NOT SET')!r}`")
+    st.warning(f"DEBUG LIVE — w_global_cc=`{st.session_state.get('w_global_cc','NOT SET')!r}` (updates as you type in the CC field above)")
     with st.expander("📋 Available Placeholders — click to expand", expanded=False):
         st.markdown("Copy any placeholder into your Subject or Body template. It will be replaced with the matching value for each party when emails are generated.")
         st.markdown("#### From Excel columns")
