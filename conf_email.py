@@ -215,10 +215,10 @@ with st.expander("⚙️ Global Configuration", expanded=True):
 
     with col_cfg1:
         st.markdown("**Company Details**")
-        company_name   = st.text_input("Company Name",            placeholder="Horizon Industries")
-        signatory      = st.text_input("Signatory & Designation", placeholder="Ramesh Verma, CFO")
-        reply_to_email = st.text_input("Reply-To Email",          placeholder="accounts@yourcompany.com")
-        conf_date      = st.date_input("Confirmation Date",       value=datetime.today())
+        company_name   = st.text_input("Company Name",            placeholder="Horizon Industries",        key="w_company")
+        signatory      = st.text_input("Signatory & Designation", placeholder="Ramesh Verma, CFO",         key="w_signatory")
+        reply_to_email = st.text_input("Reply-To Email",          placeholder="accounts@yourcompany.com",  key="w_reply_to")
+        conf_date      = st.date_input("Confirmation Date",       value=datetime.today(),                  key="w_conf_date")
         conf_date_str  = conf_date.strftime("%d %B %Y")
 
     with col_cfg2:
@@ -227,42 +227,43 @@ with st.expander("⚙️ Global Configuration", expanded=True):
             "Desktop Outlook App (win32com)",
             "Gmail (SMTP)",
             "Office 365 / Outlook (SMTP)"
-        ])
+        ], key="w_provider")
 
         email_action = "Send"
         smtp_user = smtp_pass = from_name = ""
 
         if "Desktop" in send_provider:
-            email_action = st.radio("Action when processed:", ["Save as Drafts", "Send Immediately"])
+            email_action = st.radio("Action when processed:", ["Save as Drafts", "Send Immediately"], key="w_action")
         else:
             st.info("💡 SMTP Connections send emails immediately.")
-            smtp_user = st.text_input("Sender Email Address", placeholder="you@domain.com")
-            smtp_pass = st.text_input("App Password",  type="password")
-            from_name = st.text_input("Display Name",  placeholder="Accounts Team")
+            smtp_user = st.text_input("Sender Email Address", placeholder="you@domain.com", key="w_smtp_user")
+            smtp_pass = st.text_input("App Password",  type="password",                     key="w_smtp_pass")
+            from_name = st.text_input("Display Name",  placeholder="Accounts Team",          key="w_from_name")
 
     with col_cfg3:
         st.markdown("**Filters & CC**")
         global_cc = st.text_input(
             "Global CC (comma-separated)",
             placeholder="manager@co.com",
+            key="w_global_cc",
             help="Added to every email. Per-party CC can also be set in the Excel 'CC' column."
         )
-        type_filter = st.multiselect("Include types", ["AR", "AP"], default=["AR", "AP"])
+        type_filter = st.multiselect("Include types", ["AR", "AP"], default=["AR", "AP"], key="w_type_filter")
 
     st.divider()
     if st.button("💾 Save Config", type="primary"):
         st.session_state.cfg = {
-            "company":    company_name,
-            "signatory":  signatory,
-            "reply_to":   reply_to_email,
-            "conf_date":  conf_date_str,
-            "global_cc":  global_cc,
-            "type_filter": type_filter,
-            "send_provider": send_provider,
-            "email_action": email_action,
-            "smtp_user":  smtp_user,
-            "smtp_pass":  smtp_pass,
-            "from_name":  from_name,
+            "company":       st.session_state.w_company,
+            "signatory":     st.session_state.w_signatory,
+            "reply_to":      st.session_state.w_reply_to,
+            "conf_date":     conf_date_str,
+            "global_cc":     st.session_state.w_global_cc,
+            "type_filter":   st.session_state.w_type_filter,
+            "send_provider": st.session_state.w_provider,
+            "email_action":  email_action,
+            "smtp_user":     smtp_user,
+            "smtp_pass":     smtp_pass,
+            "from_name":     from_name,
         }
         st.success("✅ Configuration saved.")
 
