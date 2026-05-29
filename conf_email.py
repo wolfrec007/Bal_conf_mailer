@@ -266,19 +266,28 @@ with st.expander("⚙️ Global Configuration", expanded=True):
         }
         st.success("✅ Configuration saved.")
 
-# Use saved config for email generation; fall back to current widget values if not yet saved
+# Always use current widget values — saved config is only used when it exists and is non-empty.
+# This prevents global_cc silently becoming "" when the user types but forgets to Save Config.
 saved = st.session_state.cfg
-cfg = {
-    "company":   saved.get("company",   company_name),
-    "signatory": saved.get("signatory", signatory),
-    "reply_to":  saved.get("reply_to",  reply_to_email),
-    "conf_date": saved.get("conf_date", conf_date_str),
-}
-effective_global_cc  = saved.get("global_cc",   global_cc)
-effective_filter     = saved.get("type_filter", type_filter)
-
 if saved:
-    st.caption(f"🔒 Config saved — using: **{saved.get('company','—')}** · {saved.get('conf_date','—')} · CC: {saved.get('global_cc','none') or 'none'}")
+    cfg = {
+        "company":   saved["company"],
+        "signatory": saved["signatory"],
+        "reply_to":  saved["reply_to"],
+        "conf_date": saved["conf_date"],
+    }
+    effective_global_cc = saved["global_cc"]
+    effective_filter    = saved["type_filter"]
+    st.caption(f"🔒 Config saved — **{saved['company'] or '—'}** · {saved['conf_date']} · CC: {saved['global_cc'] or 'none'}")
+else:
+    cfg = {
+        "company":   company_name,
+        "signatory": signatory,
+        "reply_to":  reply_to_email,
+        "conf_date": conf_date_str,
+    }
+    effective_global_cc = global_cc
+    effective_filter    = type_filter
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN TABS
@@ -321,12 +330,38 @@ with tab1:
 # TAB 2 — TEMPLATE
 # ─────────────────────────────────────────────────────────────────────────────
 with tab2:
-    st.markdown('<div class="sec-head">Available Placeholders</div>', unsafe_allow_html=True)
-    ph_cols = st.columns(3)
-    for idx, ph in enumerate(PLACEHOLDERS.keys()):
-        ph_cols[idx % 3].code(ph)
+    with st.expander("📋 Available Placeholders — click to expand", expanded=False):
+        st.markdown("Copy any placeholder into your Subject or Body template. It will be replaced with the matching value for each party when emails are generated.")
+        st.markdown("#### From Excel columns")
+        st.markdown("""
+| Placeholder | Reads from column | Default if blank |
+|---|---|---|
+| `{{Party Name}}` | Party Name | — |
+| `{{Email ID}}` | Email ID | — |
+| `{{Contact Person}}` | Contact Person | Sir/Madam |
+| `{{Type (AR/AP)}}` | Type (AR/AP) | AR |
+| `{{Currency}}` | Currency | INR |
+| `{{Outstanding Balance}}` | Outstanding Balance — formatted as *Currency X,XXX.XX* | 0.00 |
+| `{{Due Date}}` | Due Date | as agreed |
+| `{{Reference / Invoice No.}}` | Reference / Invoice No. | N/A |
+| `{{Remarks}}` | Remarks | *(blank)* |
+""")
+        st.markdown("#### From Configuration panel")
+        st.markdown("""
+| Placeholder | What it inserts |
+|---|---|
+| `{{Confirmation Date}}` | The date set in the Confirmation Date field e.g. *31 March 2026* |
+| `{{Company Name}}` | Your firm/company name |
+| `{{Signatory}}` | Name and designation of the email signatory |
+| `{{Reply-To Email}}` | The reply-to email address shown in the email footer |
+""")
+        st.markdown("#### Derived / Computed")
+        st.markdown("""
+| Placeholder | What it produces |
+|---|---|
+| `{{Flow}}` | *"receivable from your organisation"* for AR, *"payable to your organisation"* for AP |
+""")
 
-    st.divider()
     subject_tpl = st.text_input("Subject Template", value=st.session_state.subject_tpl, key="subj_t")
     st.session_state.subject_tpl = subject_tpl
     body_tpl = st.text_area("Body Template", value=st.session_state.body_tpl, height=380, key="body_t")
