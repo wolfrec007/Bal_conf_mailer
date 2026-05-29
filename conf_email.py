@@ -479,19 +479,18 @@ with tab2:
             for row in st.session_state.rows:
                 type_tag = "AP" if "AP" in str(row.get("Type (AR/AP)", "")).upper() else "AR"
                 if type_tag in type_filter and valid_email(row.get("Email ID", "")):
-                    html_body = build_html(
-                        resolve(st.session_state.body_tpl, row, cfg),
-                        row, cfg, email_style
-                    )
+                    plain_body = resolve(st.session_state.body_tpl, row, cfg)
+                    html_body  = build_html(plain_body, row, cfg, email_style)
                     drafts.append({
-                        "party":   row.get("Party Name", ""),
-                        "type":    type_tag,
-                        "to":      str(row.get("Email ID", "")).strip(),
-                        "cc":      merge_cc(row.get("CC", ""), global_cc),
-                        "subject": resolve(st.session_state.subject_tpl, row, cfg),
-                        "body":    html_body,
-                        "include": True,
-                        "row":     row,
+                        "party":      row.get("Party Name", ""),
+                        "type":       type_tag,
+                        "to":         str(row.get("Email ID", "")).strip(),
+                        "cc":         merge_cc(row.get("CC", ""), global_cc),
+                        "subject":    resolve(st.session_state.subject_tpl, row, cfg),
+                        "body":       html_body,
+                        "plain_body": plain_body,
+                        "include":    True,
+                        "row":        row,
                     })
             for i, d in enumerate(drafts):
                 st.session_state[f"rv_inc_{i}"] = d["include"]
@@ -573,7 +572,8 @@ with tab4:
                         mail.To         = d["to"]
                         mail.CC         = d.get("cc", "")
                         mail.Subject    = d["subject"]
-                        mail.HTMLBody   = d["body"]   # HTML email
+                        mail.Body       = d.get("plain_body", "")  # plain text for copy/paste
+                        mail.HTMLBody   = d["body"]                # HTML rendering
                         if "Send" in action:
                             mail.Send()
                             results.append({"Party": d["party"], "To": d["to"], "CC": d.get("cc",""), "Status": "✅ Sent"})
@@ -587,7 +587,8 @@ with tab4:
                         msg["To"]      = d["to"]
                         cc_list        = [a.strip() for a in d.get("cc","").split(",") if a.strip()]
                         if cc_list: msg["Cc"] = ", ".join(cc_list)
-                        msg.attach(MIMEText(d["body"], "html"))   # HTML email
+                        msg.attach(MIMEText(d.get("plain_body", ""), "plain"))  # fallback for copy/paste
+                        msg.attach(MIMEText(d["body"], "html"))                 # HTML rendering
                         server.sendmail(smtp_user, [d["to"]] + cc_list, msg.as_string())
                         results.append({"Party": d["party"], "To": d["to"], "CC": d.get("cc",""), "Status": "✅ Sent"})
                         if idx < len(selected) - 1:
