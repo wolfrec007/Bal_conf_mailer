@@ -41,50 +41,55 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PLACEHOLDERS CONFIG
+# Placeholder keys match Excel column names exactly: {{Column Name}}
+# cfg_ keys come from the saved configuration panel.
 # ══════════════════════════════════════════════════════════════════════════════
 
 PLACEHOLDERS = {
-    "{{party_name}}":    ("Party Name",              lambda r, cfg: str(r.get("Party Name", ""))),
-    "{{contact}}":       ("Contact Person",           lambda r, cfg: str(r.get("Contact Person") or "Sir/Madam")),
-    "{{email}}":         ("Email ID",                 lambda r, cfg: str(r.get("Email ID", ""))),
-    "{{type}}":          ("Type (AR/AP)",             lambda r, cfg: "AP" if "AP" in str(r.get("Type (AR/AP)", "")).upper() else "AR"),
-    "{{currency}}":      ("Currency",                 lambda r, cfg: str(r.get("Currency") or "INR")),
-    "{{amount}}":        ("Outstanding Balance",      lambda r, cfg: fmt_amount(r.get("Outstanding Balance", 0), r.get("Currency") or "INR")),
-    "{{due_date}}":      ("Due Date",                 lambda r, cfg: str(r.get("Due Date", ""))[:10] if r.get("Due Date") else "as agreed"),
-    "{{reference}}":     ("Reference / Invoice No.",  lambda r, cfg: str(r.get("Reference / Invoice No.") or "N/A")),
-    "{{remarks}}":       ("Remarks",                  lambda r, cfg: str(r.get("Remarks") or "")),
-    "{{conf_date}}":     ("Confirmation Date",        lambda r, cfg: cfg.get("conf_date", "")),
-    "{{company}}":       ("Your Company Name",        lambda r, cfg: cfg.get("company", "")),
-    "{{signatory}}":     ("Signatory",                lambda r, cfg: cfg.get("signatory", "")),
-    "{{reply_to}}":      ("Reply-To Email",           lambda r, cfg: cfg.get("reply_to", "")),
-    "{{flow}}":          ("AR/AP Direction Text",     lambda r, cfg: "payable to your organisation" if "AP" in str(r.get("Type (AR/AP)", "")).upper() else "receivable from your organisation"),
+    # ── Excel columns ──────────────────────────────────────────────────────
+    "{{Party Name}}":             lambda r, cfg: str(r.get("Party Name", "")),
+    "{{Email ID}}":               lambda r, cfg: str(r.get("Email ID", "")),
+    "{{Contact Person}}":         lambda r, cfg: str(r.get("Contact Person") or "Sir/Madam"),
+    "{{Type (AR/AP)}}":           lambda r, cfg: "AP" if "AP" in str(r.get("Type (AR/AP)", "")).upper() else "AR",
+    "{{Currency}}":               lambda r, cfg: str(r.get("Currency") or "INR"),
+    "{{Outstanding Balance}}":    lambda r, cfg: fmt_amount(r.get("Outstanding Balance", 0), r.get("Currency") or "INR"),
+    "{{Due Date}}":               lambda r, cfg: str(r.get("Due Date", ""))[:10] if r.get("Due Date") else "as agreed",
+    "{{Reference / Invoice No.}}": lambda r, cfg: str(r.get("Reference / Invoice No.") or "N/A"),
+    "{{Remarks}}":                lambda r, cfg: str(r.get("Remarks") or ""),
+    # ── Config panel values ────────────────────────────────────────────────
+    "{{Confirmation Date}}":      lambda r, cfg: cfg.get("conf_date", ""),
+    "{{Company Name}}":           lambda r, cfg: cfg.get("company", ""),
+    "{{Signatory}}":              lambda r, cfg: cfg.get("signatory", ""),
+    "{{Reply-To Email}}":         lambda r, cfg: cfg.get("reply_to", ""),
+    # ── Derived ───────────────────────────────────────────────────────────
+    "{{Flow}}":                   lambda r, cfg: "payable to your organisation" if "AP" in str(r.get("Type (AR/AP)", "")).upper() else "receivable from your organisation",
 }
 
-DEFAULT_SUBJECT = "Balance Confirmation as on {{conf_date}} – {{party_name}} [Ref: {{reference}}]"
+DEFAULT_SUBJECT = "Balance Confirmation as on {{Confirmation Date}} – {{Party Name}} [Ref: {{Reference / Invoice No.}}]"
 
-DEFAULT_BODY = """Dear {{contact}},
+DEFAULT_BODY = """Dear {{Contact Person}},
 
-Greetings from {{company}}!
+Greetings from {{Company Name}}!
 
-As part of our periodic balance confirmation exercise, we kindly request you to confirm the outstanding balance as on {{conf_date}}.
+As part of our periodic balance confirmation exercise, we kindly request you to confirm the outstanding balance as on {{Confirmation Date}}.
 
-As per our records, the following amount is {{flow}}:
+As per our records, the following amount is {{Flow}}:
 
-  Party Name          : {{party_name}}
-  Outstanding Amount  : {{amount}}
-  Reference           : {{reference}}
-  Due Date            : {{due_date}}
-  Remarks             : {{remarks}}
+  Party Name          : {{Party Name}}
+  Outstanding Amount  : {{Outstanding Balance}}
+  Reference           : {{Reference / Invoice No.}}
+  Due Date            : {{Due Date}}
+  Remarks             : {{Remarks}}
 
 Kindly confirm the above balance by replying to this email. If there is any discrepancy, please share the relevant details and supporting documents so that we may reconcile at the earliest.
 
 Your prompt response will be greatly appreciated.
 
-For any queries, please write to us at: {{reply_to}}
+For any queries, please write to us at: {{Reply-To Email}}
 
 Warm regards,
-{{signatory}}
-{{company}}"""
+{{Signatory}}
+{{Company Name}}"""
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HELPERS
@@ -95,7 +100,7 @@ def fmt_amount(value, currency="INR"):
     except (TypeError, ValueError): return f"{currency} 0.00"
 
 def extract_email(raw):
-    """Extract plain email from formats like 'Name <email@x.com>' or 'email@x.com'."""
+    """Extract plain address from 'Name <email@x.com>' or 'email@x.com'."""
     raw = str(raw or "").strip()
     match = re.search(r"<([^@]+@[^@]+\.[^@]+)>", raw)
     if match:
@@ -107,13 +112,13 @@ def valid_email(e):
 
 def resolve(template, row, cfg):
     result = template
-    for ph, (_, fn) in PLACEHOLDERS.items():
+    for ph, fn in PLACEHOLDERS.items():
         result = result.replace(ph, fn(row, cfg))
     return result
 
 def merge_cc(row_cc, global_cc):
-    """Combine per-row CC and global CC, deduplicating, ignoring blanks.
-    Accepts comma or semicolon separators, and 'Name <email>' format."""
+    """Combine per-row CC and global CC, deduplicating.
+    Accepts comma or semicolon separators and 'Name <email>' format."""
     parts = []
     for raw in (row_cc, global_cc):
         for addr in re.split(r"[,;]", str(raw or "")):
@@ -123,12 +128,12 @@ def merge_cc(row_cc, global_cc):
     return ", ".join(parts)
 
 def find_header_row(ws):
-    """Return the row number where Party Name / Email ID headers appear (1 or 2)."""
+    """Auto-detect whether headers are in row 1 or row 2."""
     for row_num in (1, 2):
         vals = [str(c.value).strip() if c.value else "" for c in ws[row_num]]
         if "Party Name" in vals and "Email ID" in vals:
             return row_num
-    return 2  # fallback to original behaviour
+    return 2
 
 def read_excel(file_bytes):
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
@@ -142,7 +147,6 @@ def read_excel(file_bytes):
         if not any(row): continue
         rec = dict(zip(headers, row))
         if rec.get("Party Name") and rec.get("Email ID"):
-            # Normalise Email ID to plain address
             rec["Email ID"] = extract_email(rec["Email ID"])
             rows.append(rec)
     return rows, None
@@ -151,19 +155,60 @@ def read_excel(file_bytes):
 # SESSION STATE INITIALIZATION
 # ══════════════════════════════════════════════════════════════════════════════
 
-for k, v in {"rows": [], "drafts": [], "send_log": [], "file_id": None, "subject_tpl": DEFAULT_SUBJECT, "body_tpl": DEFAULT_BODY}.items():
-    if k not in st.session_state: st.session_state[k] = v
+defaults = {
+    "rows": [], "drafts": [], "send_log": [], "file_id": None,
+    "subject_tpl": DEFAULT_SUBJECT, "body_tpl": DEFAULT_BODY,
+    "cfg": {},  # saved config
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 # ══════════════════════════════════════════════════════════════════════════════
 # HEADER & GLOBAL CONFIGURATION (MAIN AREA)
 # ══════════════════════════════════════════════════════════════════════════════
 
-st.markdown("""
+hdr_col, help_col = st.columns([11, 1])
+with hdr_col:
+    st.markdown("""
 <div style="background: var(--secondary-background-color); padding:24px 32px 20px;border-radius:8px;border-bottom:4px solid #c8873a;margin-bottom:24px;">
   <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;opacity:.7;text-transform:uppercase;margin-bottom:4px;">Financial Operations</div>
   <div style="font-size:24px;font-weight:700;">Balance Confirmation Mailer</div>
 </div>
 """, unsafe_allow_html=True)
+with help_col:
+    with st.popover("❓", help="Placeholder reference"):
+        st.markdown("### Placeholder Reference")
+        st.markdown("Use these in your **Subject** and **Body** templates. They are replaced with each party's data when emails are generated.")
+        st.markdown("#### From Excel columns")
+        st.markdown("""
+| Placeholder | Column / Source | Default if blank |
+|---|---|---|
+| `{{Party Name}}` | Party Name | — |
+| `{{Email ID}}` | Email ID | — |
+| `{{Contact Person}}` | Contact Person | Sir/Madam |
+| `{{Type (AR/AP)}}` | Type (AR/AP) | AR |
+| `{{Currency}}` | Currency | INR |
+| `{{Outstanding Balance}}` | Outstanding Balance | 0.00 |
+| `{{Due Date}}` | Due Date | as agreed |
+| `{{Reference / Invoice No.}}` | Reference / Invoice No. | N/A |
+| `{{Remarks}}` | Remarks | *(blank)* |
+""")
+        st.markdown("#### From Configuration panel")
+        st.markdown("""
+| Placeholder | Source |
+|---|---|
+| `{{Confirmation Date}}` | Confirmation Date field |
+| `{{Company Name}}` | Company Name field |
+| `{{Signatory}}` | Signatory & Designation field |
+| `{{Reply-To Email}}` | Reply-To Email field |
+""")
+        st.markdown("#### Derived")
+        st.markdown("""
+| Placeholder | What it produces |
+|---|---|
+| `{{Flow}}` | *"receivable from your organisation"* (AR) or *"payable to your organisation"* (AP) |
+""")
 
 with st.expander("⚙️ Global Configuration", expanded=True):
     col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
@@ -204,10 +249,36 @@ with st.expander("⚙️ Global Configuration", expanded=True):
         )
         type_filter = st.multiselect("Include types", ["AR", "AP"], default=["AR", "AP"])
 
+    st.divider()
+    if st.button("💾 Save Config", type="primary"):
+        st.session_state.cfg = {
+            "company":    company_name,
+            "signatory":  signatory,
+            "reply_to":   reply_to_email,
+            "conf_date":  conf_date_str,
+            "global_cc":  global_cc,
+            "type_filter": type_filter,
+            "send_provider": send_provider,
+            "email_action": email_action,
+            "smtp_user":  smtp_user,
+            "smtp_pass":  smtp_pass,
+            "from_name":  from_name,
+        }
+        st.success("✅ Configuration saved.")
+
+# Use saved config for email generation; fall back to current widget values if not yet saved
+saved = st.session_state.cfg
 cfg = {
-    "company": company_name, "signatory": signatory,
-    "reply_to": reply_to_email, "conf_date": conf_date_str,
+    "company":   saved.get("company",   company_name),
+    "signatory": saved.get("signatory", signatory),
+    "reply_to":  saved.get("reply_to",  reply_to_email),
+    "conf_date": saved.get("conf_date", conf_date_str),
 }
+effective_global_cc  = saved.get("global_cc",   global_cc)
+effective_filter     = saved.get("type_filter", type_filter)
+
+if saved:
+    st.caption(f"🔒 Config saved — using: **{saved.get('company','—')}** · {saved.get('conf_date','—')} · CC: {saved.get('global_cc','none') or 'none'}")
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN TABS
@@ -250,27 +321,36 @@ with tab1:
 # TAB 2 — TEMPLATE
 # ─────────────────────────────────────────────────────────────────────────────
 with tab2:
+    st.markdown('<div class="sec-head">Available Placeholders</div>', unsafe_allow_html=True)
+    ph_cols = st.columns(3)
+    for idx, ph in enumerate(PLACEHOLDERS.keys()):
+        ph_cols[idx % 3].code(ph)
+
+    st.divider()
     subject_tpl = st.text_input("Subject Template", value=st.session_state.subject_tpl, key="subj_t")
     st.session_state.subject_tpl = subject_tpl
-    body_tpl = st.text_area("Body Template", value=st.session_state.body_tpl, height=350, key="body_t")
+    body_tpl = st.text_area("Body Template", value=st.session_state.body_tpl, height=380, key="body_t")
     st.session_state.body_tpl = body_tpl
 
     if st.button("🔨 Generate Emails", type="primary", use_container_width=True):
         if not st.session_state.rows:
             st.warning("Upload data first.")
+        elif not st.session_state.cfg:
+            st.warning("⚠️ Please fill in the Configuration panel above and click **💾 Save Config** first.")
         else:
             drafts = []
             for row in st.session_state.rows:
                 type_tag = "AP" if "AP" in str(row.get("Type (AR/AP)", "")).upper() else "AR"
-                if type_tag in type_filter and valid_email(row.get("Email ID", "")):
-                    # Merge per-row CC (from Excel) with global CC
-                    combined_cc = merge_cc(row.get("CC", ""), global_cc)
+                if type_tag in effective_filter and valid_email(row.get("Email ID", "")):
+                    combined_cc = merge_cc(row.get("CC", ""), effective_global_cc)
                     drafts.append({
-                        "party": row.get("Party Name", ""), "type": type_tag,
-                        "to": str(row.get("Email ID", "")).strip(), "cc": combined_cc,
+                        "party":   row.get("Party Name", ""),
+                        "type":    type_tag,
+                        "to":      str(row.get("Email ID", "")).strip(),
+                        "cc":      combined_cc,
                         "subject": resolve(st.session_state.subject_tpl, row, cfg),
-                        "body": resolve(st.session_state.body_tpl, row, cfg),
-                        "amount": fmt_amount(row.get("Outstanding Balance", 0), row.get("Currency") or "INR"),
+                        "body":    resolve(st.session_state.body_tpl, row, cfg),
+                        "amount":  fmt_amount(row.get("Outstanding Balance", 0), row.get("Currency") or "INR"),
                         "include": True,
                     })
             st.session_state.drafts = drafts
@@ -281,15 +361,15 @@ with tab2:
 # ─────────────────────────────────────────────────────────────────────────────
 with tab3:
     drafts = st.session_state.drafts
-    if not drafts: st.info("Generate emails in Step 2.")
+    if not drafts:
+        st.info("Generate emails in Step 2.")
     for i, draft in enumerate(drafts):
-        static_title = f"✉️ {draft['party']} | {draft['type']}"
-        with st.expander(static_title, expanded=False):
+        with st.expander(f"✉️ {draft['party']} | {draft['type']}", expanded=False):
             draft["include"] = st.checkbox("Include this email in dispatch list", value=draft["include"], key=f"inc_{i}")
-            draft["to"] = st.text_input("To", value=draft["to"], key=f"to_{i}")
-            draft["cc"] = st.text_input("CC", value=draft["cc"], key=f"cc_{i}")
+            draft["to"]      = st.text_input("To",      value=draft["to"],      key=f"to_{i}")
+            draft["cc"]      = st.text_input("CC",      value=draft["cc"],      key=f"cc_{i}")
             draft["subject"] = st.text_input("Subject", value=draft["subject"], key=f"s_{i}")
-            draft["body"] = st.text_area("Body", value=draft["body"], key=f"b_{i}", height=200)
+            draft["body"]    = st.text_area("Body",     value=draft["body"],    key=f"b_{i}", height=200)
 
     st.session_state.drafts = drafts
 
@@ -297,81 +377,73 @@ with tab3:
 # TAB 4 — DISPATCH
 # ─────────────────────────────────────────────────────────────────────────────
 with tab4:
+    # Resolve send settings from saved config if available
+    eff_provider     = saved.get("send_provider", send_provider)
+    eff_action       = saved.get("email_action",  email_action)
+    eff_smtp_user    = saved.get("smtp_user",     smtp_user)
+    eff_smtp_pass    = saved.get("smtp_pass",     smtp_pass)
+    eff_from_name    = saved.get("from_name",     from_name)
+
     selected = [d for d in st.session_state.drafts if d.get("include")]
     if not selected:
         st.warning("No emails selected. Go to Step 3 and select emails to include.")
     else:
-        st.write(f"**Ready to process:** {len(selected)} emails via `{send_provider}`")
+        st.write(f"**Ready to process:** {len(selected)} emails via `{eff_provider}`")
 
-        btn_label = f"🚀 Execute: {email_action} ({len(selected)} emails)"
-
-        if st.button(btn_label, type="primary", use_container_width=True):
-            if "SMTP" in send_provider and (not smtp_user or not smtp_pass):
-                st.error("❌ Please enter your SMTP Email and App Password in the Configuration panel.")
+        if st.button(f"🚀 Execute: {eff_action} ({len(selected)} emails)", type="primary", use_container_width=True):
+            if "SMTP" in eff_provider and (not eff_smtp_user or not eff_smtp_pass):
+                st.error("❌ Please enter your SMTP Email and App Password in the Configuration panel and Save Config.")
             else:
                 progress_bar = st.progress(0)
-                status_text = st.empty()
-                results = []
-                start_time = time.time()
-
-                server = None
-                outlook = None
+                status_text  = st.empty()
+                results      = []
+                start_time   = time.time()
+                server = outlook = None
 
                 try:
-                    if "Desktop" in send_provider:
-                        import win32com.client
-                        import pythoncom
-
+                    if "Desktop" in eff_provider:
+                        import win32com.client, pythoncom
                         pythoncom.CoInitialize()
                         outlook = win32com.client.Dispatch("Outlook.Application")
-
-                    elif "Gmail" in send_provider:
+                    elif "Gmail" in eff_provider:
                         context = ssl.create_default_context()
                         server = smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context)
-                        server.login(smtp_user, smtp_pass)
-
-                    else: # Office 365
+                        server.login(eff_smtp_user, eff_smtp_pass)
+                    else:
                         server = smtplib.SMTP("smtp.office365.com", 587)
                         server.starttls()
-                        server.login(smtp_user, smtp_pass)
-
+                        server.login(eff_smtp_user, eff_smtp_pass)
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
                     st.stop()
 
                 for idx, d in enumerate(selected):
                     status_text.markdown(f"**Processing:** {d['party']} ({idx+1}/{len(selected)})")
-
                     try:
-                        if "Desktop" in send_provider:
-                            mail = outlook.CreateItem(0)
-                            mail.To = d["to"]
-                            mail.CC = d.get("cc", "")
+                        if "Desktop" in eff_provider:
+                            mail         = outlook.CreateItem(0)
+                            mail.To      = d["to"]
+                            mail.CC      = d.get("cc", "")
                             mail.Subject = d["subject"]
-                            mail.Body = d["body"]
-
-                            if "Send" in email_action:
+                            mail.Body    = d["body"]
+                            if "Send" in eff_action:
                                 mail.Send()
                                 results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": "✅ Sent via App"})
                             else:
                                 mail.Save()
                                 results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": "✅ Draft Saved"})
-
-                        else: # SMTP Sending
-                            msg = MIMEMultipart("alternative")
+                        else:
+                            msg            = MIMEMultipart("alternative")
                             msg["Subject"] = d["subject"]
-                            msg["From"] = f"{from_name or company_name} <{smtp_user}>"
-                            msg["To"] = d["to"]
-                            cc_list = [c.strip() for c in d.get("cc", "").split(",") if c.strip()]
+                            msg["From"]    = f"{eff_from_name or cfg.get('company','')} <{eff_smtp_user}>"
+                            msg["To"]      = d["to"]
+                            cc_list        = [c.strip() for c in d.get("cc", "").split(",") if c.strip()]
                             if cc_list: msg["Cc"] = ", ".join(cc_list)
                             msg.attach(MIMEText(d["body"], "plain"))
-
-                            server.sendmail(smtp_user, [d["to"]] + cc_list, msg.as_string())
+                            server.sendmail(eff_smtp_user, [d["to"]] + cc_list, msg.as_string())
                             results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": "✅ Sent via SMTP"})
-
                             if idx < len(selected) - 1:
                                 time.sleep(0.5)
-
                     except Exception as e:
                         results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": f"❌ Error: {e}"})
 
@@ -381,15 +453,13 @@ with tab4:
                     try: server.quit()
                     except: pass
 
-                end_time = time.time()
                 st.session_state.send_log = results
-
                 status_text.empty()
                 progress_bar.empty()
 
                 success_count = sum(1 for r in results if "✅" in r["Status"])
-                fail_count = sum(1 for r in results if "❌" in r["Status"])
-                time_taken = round(end_time - start_time, 1)
+                fail_count    = sum(1 for r in results if "❌" in r["Status"])
+                time_taken    = round(time.time() - start_time, 1)
 
                 st.markdown(f"""
                 <div style="display:flex;gap:15px;margin-bottom:20px;">
@@ -401,5 +471,4 @@ with tab4:
 
     if st.session_state.send_log:
         st.markdown('<div class="sec-head">Detailed Dispatch Log</div>', unsafe_allow_html=True)
-        log_df = pd.DataFrame(st.session_state.send_log)
-        st.dataframe(log_df, use_container_width=True)
+        st.dataframe(pd.DataFrame(st.session_state.send_log), use_container_width=True)
