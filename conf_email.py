@@ -64,11 +64,11 @@ As part of our periodic balance confirmation exercise, we kindly request you to 
 
 As per our records, the following amount is {{Flow}}:
 
-Party Name          : {{Party Name}}
-Outstanding Amount  : {{Outstanding Balance}}
-Reference           : {{Reference / Invoice No.}}
-Due Date            : {{Due Date}}
-Remarks             : {{Remarks}}
+{{Party Name}}
+{{Outstanding Balance}}
+{{Reference / Invoice No.}}
+{{Due Date}}
+{{Remarks}}
 
 Kindly confirm the above balance by replying to this email. If there is any discrepancy, please share the relevant details and supporting documents so that we may reconcile at the earliest.
 
@@ -143,44 +143,43 @@ EMAIL_STYLES = {
 }
 
 def build_html(plain_body, row, cfg, style, body_tpl=""):
-    """Convert plain-text body to a well-structured HTML email."""
-    s = EMAIL_STYLES[style]
-    font     = s["font"]
-    h_bg     = s["header_bg"]
-    h_txt    = s["header_text"]
-    th_bg    = s["table_header_bg"]
-    th_txt   = s["table_header_text"]
-    tr_bg    = s["table_row_bg"]
-    ta_bg    = s["table_alt_bg"]
-    accent   = s["accent"]
-    border   = s["border"]
+    """
+    Build an HTML email from the resolved plain_body text.
+    - plain_body : resolved text (placeholders replaced) — drives all paragraphs
+    - body_tpl   : raw template (placeholders intact) — used to decide which table rows to show
+    The balance table is injected at the position of the FIRST placeholder
+    in the template that maps to a table field, or after the first paragraph
+    if none found. Every other line of plain_body becomes an <p> tag.
+    """
+    s      = EMAIL_STYLES[style]
+    font   = s["font"];  h_bg = s["header_bg"];  h_txt = s["header_text"]
+    th_bg  = s["table_header_bg"];  th_txt = s["table_header_text"]
+    tr_bg  = s["table_row_bg"];     ta_bg  = s["table_alt_bg"]
+    accent = s["accent"];           border = s["border"]
 
-    company  = cfg.get("company", "")
-    signatory= cfg.get("signatory", "")
-    reply_to = cfg.get("reply_to", "")
+    company = cfg.get("company", "")
+    conf_dt = cfg.get("conf_date", "")
 
-    contact  = str(row.get("Contact Person") or "Sir/Madam")
-    party    = str(row.get("Party Name", ""))
-    amount   = fmt_amount(row.get("Outstanding Balance", 0), row.get("Currency") or "INR")
-    ref      = str(row.get("Reference / Invoice No.") or "N/A")
-    due      = str(row.get("Due Date", ""))[:10] if row.get("Due Date") else "as agreed"
-    remarks  = str(row.get("Remarks") or "—")
-    conf_dt  = cfg.get("conf_date", "")
-    flow     = "payable to your organisation" if "AP" in str(row.get("Type (AR/AP)", "")).upper() else "receivable from your organisation"
+    # ── Table: only include rows whose placeholder is in the raw template ──────
+    tpl    = body_tpl if body_tpl else plain_body
+    amount = fmt_amount(row.get("Outstanding Balance", 0), row.get("Currency") or "INR")
+    ref    = str(row.get("Reference / Invoice No.") or "")
+    due    = str(row.get("Due Date", ""))[:10] if row.get("Due Date") else ""
+    rem    = str(row.get("Remarks") or "")
+    party  = str(row.get("Party Name", ""))
 
-    # Check the raw template (before resolution) so placeholders are still present
-    tpl = body_tpl if body_tpl else plain_body
-    table_rows = []
-    if "{{Party Name}}" in tpl and party:
-        table_rows.append(("Party Name", party))
-    if "{{Outstanding Balance}}" in tpl:
-        table_rows.append(("Outstanding Amount", f"<strong>{amount}</strong>"))
-    if "{{Reference / Invoice No.}}" in tpl and row.get("Reference / Invoice No."):
-        table_rows.append(("Reference", ref))
-    if "{{Due Date}}" in tpl and row.get("Due Date"):
-        table_rows.append(("Due Date", due))
-    if "{{Remarks}}" in tpl and row.get("Remarks"):
-        table_rows.append(("Remarks", remarks))
+    TABLE_PLACEHOLDERS = [
+        ("{{Party Name}}",              "Party Name",         party,                              True),
+        ("{{Outstanding Balance}}",     "Outstanding Amount", f"<strong>{amount}</strong>",        True),
+        ("{{Reference / Invoice No.}}", "Reference",          ref,                                 bool(ref)),
+        ("{{Due Date}}",                "Due Date",           due,                                 bool(due)),
+        ("{{Remarks}}",                 "Remarks",            rem,                                 bool(rem)),
+    ]
+    table_rows = [
+        (label, value)
+        for ph, label, value, has_data in TABLE_PLACEHOLDERS
+        if ph in tpl and has_data
+    ]
 
     tr_html = ""
     for idx, (label, value) in enumerate(table_rows):
@@ -191,49 +190,103 @@ def build_html(plain_body, row, cfg, style, body_tpl=""):
           <td style="padding:9px 14px;background:{bg};border-bottom:1px solid {border};">{value}</td>
         </tr>"""
 
+    table_html = ""
+    if table_rows:
+        table_html = f"""
+       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:4px;overflow:hidden;border:1px solid {border};margin:20px 0 24px;font-size:13px;">
+         <tr>
+           <th colspan="2" style="background:{th_bg};color:{th_txt};padding:10px 14px;text-align:left;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;">Balance Details</th>
+         </tr>
+         {tr_html}
+       </table>"""
+
+    # ── Convert plain_body lines → HTML paragraphs ────────────────────────────
+    # Table placeholder lines (e.g. "{{Party Name}}" resolved to "Amara Raja...")
+    # are identified by checking if the raw template has a table placeholder on
+    # that line. We match by position: for each line in tpl, if it is a table
+    # placeholder, the corresponding line in plain_body is a table value line.
+
+    tpl_lines   = tpl.splitlines()
+    plain_lines = plain_body.splitlines()
+
+    TABLE_PHS = {"{{Party Name}}", "{{Outstanding Balance}}",
+                 "{{Reference / Invoice No.}}", "{{Due Date}}", "{{Remarks}}"}
+
+    # Build a set of line indices that are table placeholder lines in tpl
+    table_line_indices = set()
+    for i, tline in enumerate(tpl_lines):
+        if tline.strip() in TABLE_PHS and i < len(plain_lines):
+            table_line_indices.add(i)
+
+    para_lines     = []
+    body_paras     = []
+    table_injected = False
+    in_table_block = False
+
+    for i, line in enumerate(plain_lines):
+        stripped = line.strip()
+        is_table_line = i in table_line_indices
+
+        if is_table_line:
+            in_table_block = True
+            # Flush any pending paragraph
+            if para_lines:
+                body_paras.append("<p style='margin:0 0 14px;'>" + "<br>".join(para_lines) + "</p>")
+                para_lines = []
+        else:
+            if in_table_block and not table_injected:
+                # End of table block — inject the table now
+                body_paras.append(table_html)
+                table_injected = True
+                in_table_block = False
+
+            if stripped == "":
+                if para_lines:
+                    body_paras.append("<p style='margin:0 0 14px;'>" + "<br>".join(para_lines) + "</p>")
+                    para_lines = []
+            else:
+                para_lines.append(stripped)
+
+    # Flush remaining
+    if in_table_block and not table_injected:
+        if para_lines:
+            body_paras.append("<p style='margin:0 0 14px;'>" + "<br>".join(para_lines) + "</p>")
+            para_lines = []
+        body_paras.append(table_html)
+        table_injected = True
+
+    if para_lines:
+        body_paras.append("<p style='margin:0 0 14px;'>" + "<br>".join(para_lines) + "</p>")
+
+    # Fallback: if no table placeholders in template, don't inject table
+    if not table_injected and table_html and table_line_indices:
+        body_paras.insert(1, table_html)
+
+    body_content = "\n".join(body_paras)
+
+    # ── Assemble final HTML ────────────────────────────────────────────────────
     html = f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
+<html><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+</head>
 <body style="margin:0;padding:0;background:#f4f4f4;font-family:{font};">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:30px 0;">
  <tr><td align="center">
-  <table width="620" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+  <table width="620" cellpadding="0" cellspacing="0"
+         style="background:#ffffff;border-radius:6px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
    <!-- Header -->
    <tr>
      <td style="background:{h_bg};padding:22px 30px;">
        <div style="font-size:18px;font-weight:700;color:{h_txt};letter-spacing:0.3px;">{company}</div>
-       <div style="font-size:12px;color:{h_txt};opacity:0.8;margin-top:3px;">Balance Confirmation · {conf_dt}</div>
+       <div style="font-size:12px;color:{h_txt};opacity:0.8;margin-top:3px;">Balance Confirmation &middot; {conf_dt}</div>
      </td>
    </tr>
 
    <!-- Body -->
    <tr>
-     <td style="padding:28px 30px;font-size:14px;line-height:1.7;color:#333;">
-       <p style="margin:0 0 16px;">Dear {contact},</p>
-       <p style="margin:0 0 16px;">Greetings from <strong>{company}</strong>!</p>
-       <p style="margin:0 0 16px;">As part of our periodic balance confirmation exercise, we kindly request you to confirm the outstanding balance as on <strong>{conf_dt}</strong>.</p>
-       <p style="margin:0 0 20px;">As per our records, the following amount is <strong>{flow}</strong>:</p>
-
-       <!-- Balance Table -->
-       <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:4px;overflow:hidden;border:1px solid {border};margin-bottom:24px;font-size:13px;">
-         <tr>
-           <th colspan="2" style="background:{th_bg};color:{th_txt};padding:10px 14px;text-align:left;font-size:12px;letter-spacing:0.5px;text-transform:uppercase;">Balance Details</th>
-         </tr>
-         {tr_html}
-       </table>
-
-       <p style="margin:0 0 16px;">Kindly confirm the above balance by replying to this email. If there is any discrepancy, please share the relevant details and supporting documents so that we may reconcile at the earliest.</p>
-       <p style="margin:0 0 16px;">Your prompt response will be greatly appreciated.</p>
-       <p style="margin:0 0 4px;">For any queries, please write to us at: <a href="mailto:{reply_to}" style="color:{accent};">{reply_to}</a></p>
-     </td>
-   </tr>
-
-   <!-- Signature -->
-   <tr>
-     <td style="padding:0 30px 28px;font-size:14px;color:#333;">
-       <p style="margin:0 0 4px;">Warm regards,</p>
-       <p style="margin:0 0 2px;font-weight:700;color:{accent};">{signatory}</p>
-       <p style="margin:0;color:#666;font-size:13px;">{company}</p>
+     <td style="padding:28px 30px 8px;font-size:14px;line-height:1.75;color:#333;">
+       {body_content}
      </td>
    </tr>
 
