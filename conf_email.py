@@ -168,13 +168,20 @@ def build_html(plain_body, row, cfg, style):
     conf_dt  = cfg.get("conf_date", "")
     flow     = "payable to your organisation" if "AP" in str(row.get("Type (AR/AP)", "")).upper() else "receivable from your organisation"
 
-    table_rows = [
-        ("Party Name",         party),
-        ("Outstanding Amount", f"<strong>{amount}</strong>"),
-        ("Reference",          ref),
-        ("Due Date",           due),
-        ("Remarks",            remarks),
-    ]
+    # Only include a table row if the placeholder was used in the body template
+    # AND the underlying data is present (not a fallback default)
+    table_rows = []
+    if "{{Party Name}}" in plain_body or party:
+        table_rows.append(("Party Name", party))
+    if "{{Outstanding Balance}}" in plain_body:
+        table_rows.append(("Outstanding Amount", f"<strong>{amount}</strong>"))
+    if "{{Reference / Invoice No.}}" in plain_body and row.get("Reference / Invoice No."):
+        table_rows.append(("Reference", ref))
+    if "{{Due Date}}" in plain_body and row.get("Due Date"):
+        table_rows.append(("Due Date", due))
+    if "{{Remarks}}" in plain_body and row.get("Remarks"):
+        table_rows.append(("Remarks", remarks))
+
     tr_html = ""
     for idx, (label, value) in enumerate(table_rows):
         bg = tr_bg if idx % 2 == 0 else ta_bg
