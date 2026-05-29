@@ -407,11 +407,16 @@ with tab3:
         st.info("Generate emails in Step 2.")
     for i, draft in enumerate(drafts):
         with st.expander(f"✉️ {draft['party']} | {draft['type']}", expanded=False):
-            draft["include"] = st.checkbox("Include this email in dispatch list", value=draft["include"], key=f"inc_{i}")
-            draft["to"]      = st.text_input("To",      value=draft["to"],      key=f"to_{i}")
-            draft["cc"]      = st.text_input("CC",      value=draft["cc"],      key=f"cc_{i}")
-            draft["subject"] = st.text_input("Subject", value=draft["subject"], key=f"s_{i}")
-            draft["body"]    = st.text_area("Body",     value=draft["body"],    key=f"b_{i}", height=500)
+            st.checkbox("Include this email in dispatch list", key=f"inc_{i}")
+            draft["include"] = st.session_state[f"inc_{i}"]
+            st.text_input("To",      key=f"to_{i}")
+            draft["to"]      = st.session_state[f"to_{i}"]
+            st.text_input("CC",      key=f"cc_{i}")
+            draft["cc"]      = st.session_state[f"cc_{i}"]
+            st.text_input("Subject", key=f"s_{i}")
+            draft["subject"] = st.session_state[f"s_{i}"]
+            st.text_area("Body",     key=f"b_{i}", height=500)
+            draft["body"]    = st.session_state[f"b_{i}"]
 
     st.session_state.drafts = drafts
 
