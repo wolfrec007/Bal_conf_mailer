@@ -94,8 +94,16 @@ def fmt_amount(value, currency="INR"):
     try: return f"{currency} {float(value):,.2f}"
     except (TypeError, ValueError): return f"{currency} 0.00"
 
+def extract_email(raw):
+    """Extract plain email from formats like 'Name <email@x.com>' or 'email@x.com'."""
+    raw = str(raw or "").strip()
+    match = re.search(r"<([^@]+@[^@]+\.[^@]+)>", raw)
+    if match:
+        return match.group(1).strip()
+    return raw
+
 def valid_email(e):
-    return bool(e and re.match(r"[^@]+@[^@]+\.[^@]+", str(e).strip()))
+    return bool(e and re.match(r"[^@]+@[^@]+\.[^@]+", extract_email(str(e))))
 
 def resolve(template, row, cfg):
     result = template
@@ -104,26 +112,38 @@ def resolve(template, row, cfg):
     return result
 
 def merge_cc(row_cc, global_cc):
-    """Combine per-row CC and global CC, deduplicating, ignoring blanks."""
+    """Combine per-row CC and global CC, deduplicating, ignoring blanks.
+    Accepts comma or semicolon separators, and 'Name <email>' format."""
     parts = []
     for raw in (row_cc, global_cc):
-        for addr in str(raw or "").split(","):
-            addr = addr.strip()
+        for addr in re.split(r"[,;]", str(raw or "")):
+            addr = extract_email(addr)
             if addr and addr not in parts:
                 parts.append(addr)
     return ", ".join(parts)
+
+def find_header_row(ws):
+    """Return the row number where Party Name / Email ID headers appear (1 or 2)."""
+    for row_num in (1, 2):
+        vals = [str(c.value).strip() if c.value else "" for c in ws[row_num]]
+        if "Party Name" in vals and "Email ID" in vals:
+            return row_num
+    return 2  # fallback to original behaviour
 
 def read_excel(file_bytes):
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
     if "Party List" not in wb.sheetnames:
         return None, "Sheet 'Party List' not found. Please use the provided template."
     ws = wb["Party List"]
-    headers = [str(c.value).strip() if c.value else "" for c in ws[2]]
+    header_row = find_header_row(ws)
+    headers = [str(c.value).strip() if c.value else "" for c in ws[header_row]]
     rows = []
-    for row in ws.iter_rows(min_row=3, values_only=True):
+    for row in ws.iter_rows(min_row=header_row + 1, values_only=True):
         if not any(row): continue
         rec = dict(zip(headers, row))
         if rec.get("Party Name") and rec.get("Email ID"):
+            # Normalise Email ID to plain address
+            rec["Email ID"] = extract_email(rec["Email ID"])
             rows.append(rec)
     return rows, None
 
