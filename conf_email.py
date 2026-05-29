@@ -3,7 +3,7 @@ Balance Confirmation – Bulk Email App (Streamlit)
 ==================================================
 Run:
     pip install -r requirements.txt
-    streamlit run balance_email_app.py
+    streamlit run conf_email.py
 """
 
 import streamlit as st
@@ -23,7 +23,7 @@ st.set_page_config(
     page_title="Balance Confirmation Mailer",
     page_icon="📧",
     layout="wide",
-    initial_sidebar_state="collapsed", # Changed to collapsed since we don't use it anymore
+    initial_sidebar_state="collapsed",
 )
 
 # ── CSS (Dark Mode Compatible) ────────────────────────────────────────────────
@@ -103,6 +103,16 @@ def resolve(template, row, cfg):
         result = result.replace(ph, fn(row, cfg))
     return result
 
+def merge_cc(row_cc, global_cc):
+    """Combine per-row CC and global CC, deduplicating, ignoring blanks."""
+    parts = []
+    for raw in (row_cc, global_cc):
+        for addr in str(raw or "").split(","):
+            addr = addr.strip()
+            if addr and addr not in parts:
+                parts.append(addr)
+    return ", ".join(parts)
+
 def read_excel(file_bytes):
     wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
     if "Party List" not in wb.sheetnames:
@@ -137,7 +147,7 @@ st.markdown("""
 
 with st.expander("⚙️ Global Configuration", expanded=True):
     col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
-    
+
     with col_cfg1:
         st.markdown("**Company Details**")
         company_name   = st.text_input("Company Name",            placeholder="Horizon Industries")
@@ -145,12 +155,12 @@ with st.expander("⚙️ Global Configuration", expanded=True):
         reply_to_email = st.text_input("Reply-To Email",          placeholder="accounts@yourcompany.com")
         conf_date      = st.date_input("Confirmation Date",       value=datetime.today())
         conf_date_str  = conf_date.strftime("%d %B %Y")
-        
+
     with col_cfg2:
         st.markdown("**Email Engine & Settings**")
         send_provider = st.selectbox("Select Email Provider", [
-            "Desktop Outlook App (win32com)", 
-            "Gmail (SMTP)", 
+            "Desktop Outlook App (win32com)",
+            "Gmail (SMTP)",
             "Office 365 / Outlook (SMTP)"
         ])
 
@@ -167,11 +177,15 @@ with st.expander("⚙️ Global Configuration", expanded=True):
 
     with col_cfg3:
         st.markdown("**Filters & CC**")
-        global_cc = st.text_input("Global CC (comma-separated)",  placeholder="manager@co.com")
+        global_cc = st.text_input(
+            "Global CC (comma-separated)",
+            placeholder="manager@co.com",
+            help="Added to every email. Per-party CC can also be set in the Excel 'CC' column."
+        )
         type_filter = st.multiselect("Include types", ["AR", "AP"], default=["AR", "AP"])
 
 cfg = {
-    "company": company_name, "signatory": signatory, 
+    "company": company_name, "signatory": signatory,
     "reply_to": reply_to_email, "conf_date": conf_date_str,
 }
 
@@ -182,25 +196,25 @@ cfg = {
 tab1, tab2, tab3, tab4 = st.tabs(["📂 Step 1 · Upload & Edit", "✍️ Step 2 · Template", "✏️ Step 3 · Review", "📤 Step 4 · Dispatch"])
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 1 — UPLOAD & EDIT 
+# TAB 1 — UPLOAD & EDIT
 # ─────────────────────────────────────────────────────────────────────────────
 with tab1:
     uploaded = st.file_uploader("Upload Excel File", type=["xlsx", "xls"], help='Must contain sheet "Party List"')
-    
+
     if uploaded and st.session_state.file_id != uploaded.file_id:
         rows, err = read_excel(uploaded.read())
-        if err: 
+        if err:
             st.error(f"❌ {err}")
         else:
             st.session_state.rows = rows
-            st.session_state.drafts = [] 
+            st.session_state.drafts = []
             st.session_state.file_id = uploaded.file_id
             st.success(f"✅ Loaded **{len(rows)}** parties.")
 
     if st.session_state.rows:
         st.markdown('<div class="sec-head">Review & Edit Data</div>', unsafe_allow_html=True)
         st.caption("💡 Notice a typo? Double-click any cell below to edit the data before generating emails.")
-        
+
         df = pd.DataFrame(st.session_state.rows)
         edited_df = st.data_editor(df, use_container_width=True, num_rows="dynamic", key="data_editor")
         st.session_state.rows = edited_df.to_dict("records")
@@ -229,9 +243,11 @@ with tab2:
             for row in st.session_state.rows:
                 type_tag = "AP" if "AP" in str(row.get("Type (AR/AP)", "")).upper() else "AR"
                 if type_tag in type_filter and valid_email(row.get("Email ID", "")):
+                    # Merge per-row CC (from Excel) with global CC
+                    combined_cc = merge_cc(row.get("CC", ""), global_cc)
                     drafts.append({
                         "party": row.get("Party Name", ""), "type": type_tag,
-                        "to": str(row.get("Email ID", "")).strip(), "cc": global_cc,
+                        "to": str(row.get("Email ID", "")).strip(), "cc": combined_cc,
                         "subject": resolve(st.session_state.subject_tpl, row, cfg),
                         "body": resolve(st.session_state.body_tpl, row, cfg),
                         "amount": fmt_amount(row.get("Outstanding Balance", 0), row.get("Currency") or "INR"),
@@ -254,11 +270,11 @@ with tab3:
             draft["cc"] = st.text_input("CC", value=draft["cc"], key=f"cc_{i}")
             draft["subject"] = st.text_input("Subject", value=draft["subject"], key=f"s_{i}")
             draft["body"] = st.text_area("Body", value=draft["body"], key=f"b_{i}", height=200)
-    
+
     st.session_state.drafts = drafts
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TAB 4 — DISPATCH 
+# TAB 4 — DISPATCH
 # ─────────────────────────────────────────────────────────────────────────────
 with tab4:
     selected = [d for d in st.session_state.drafts if d.get("include")]
@@ -266,9 +282,9 @@ with tab4:
         st.warning("No emails selected. Go to Step 3 and select emails to include.")
     else:
         st.write(f"**Ready to process:** {len(selected)} emails via `{send_provider}`")
-        
+
         btn_label = f"🚀 Execute: {email_action} ({len(selected)} emails)"
-        
+
         if st.button(btn_label, type="primary", use_container_width=True):
             if "SMTP" in send_provider and (not smtp_user or not smtp_pass):
                 st.error("❌ Please enter your SMTP Email and App Password in the Configuration panel.")
@@ -277,37 +293,35 @@ with tab4:
                 status_text = st.empty()
                 results = []
                 start_time = time.time()
-                
-                # Setup Connection based on Provider
+
                 server = None
                 outlook = None
-                
+
                 try:
                     if "Desktop" in send_provider:
                         import win32com.client
                         import pythoncom
-                        
-                        pythoncom.CoInitialize() 
+
+                        pythoncom.CoInitialize()
                         outlook = win32com.client.Dispatch("Outlook.Application")
-                        
+
                     elif "Gmail" in send_provider:
                         context = ssl.create_default_context()
                         server = smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context)
                         server.login(smtp_user, smtp_pass)
-                        
+
                     else: # Office 365
                         server = smtplib.SMTP("smtp.office365.com", 587)
                         server.starttls()
                         server.login(smtp_user, smtp_pass)
-                        
+
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
                     st.stop()
 
-                # Dispatch Loop
                 for idx, d in enumerate(selected):
                     status_text.markdown(f"**Processing:** {d['party']} ({idx+1}/{len(selected)})")
-                    
+
                     try:
                         if "Desktop" in send_provider:
                             mail = outlook.CreateItem(0)
@@ -315,14 +329,14 @@ with tab4:
                             mail.CC = d.get("cc", "")
                             mail.Subject = d["subject"]
                             mail.Body = d["body"]
-                            
+
                             if "Send" in email_action:
                                 mail.Send()
-                                results.append({"Party": d["party"], "Email": d["to"], "Status": "✅ Sent via App"})
+                                results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": "✅ Sent via App"})
                             else:
                                 mail.Save()
-                                results.append({"Party": d["party"], "Email": d["to"], "Status": "✅ Draft Saved"})
-                                
+                                results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": "✅ Draft Saved"})
+
                         else: # SMTP Sending
                             msg = MIMEMultipart("alternative")
                             msg["Subject"] = d["subject"]
@@ -331,30 +345,28 @@ with tab4:
                             cc_list = [c.strip() for c in d.get("cc", "").split(",") if c.strip()]
                             if cc_list: msg["Cc"] = ", ".join(cc_list)
                             msg.attach(MIMEText(d["body"], "plain"))
-                            
+
                             server.sendmail(smtp_user, [d["to"]] + cc_list, msg.as_string())
-                            results.append({"Party": d["party"], "Email": d["to"], "Status": "✅ Sent via SMTP"})
-                            
+                            results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": "✅ Sent via SMTP"})
+
                             if idx < len(selected) - 1:
-                                time.sleep(0.5) 
-                                
+                                time.sleep(0.5)
+
                     except Exception as e:
-                        results.append({"Party": d["party"], "Email": d["to"], "Status": f"❌ Error: {e}"})
-                    
+                        results.append({"Party": d["party"], "Email": d["to"], "CC": d.get("cc", ""), "Status": f"❌ Error: {e}"})
+
                     progress_bar.progress((idx + 1) / len(selected))
-                
-                # Cleanup SMTP
+
                 if server:
                     try: server.quit()
                     except: pass
-                
+
                 end_time = time.time()
                 st.session_state.send_log = results
-                
+
                 status_text.empty()
                 progress_bar.empty()
-                
-                # Display Summary Metrics
+
                 success_count = sum(1 for r in results if "✅" in r["Status"])
                 fail_count = sum(1 for r in results if "❌" in r["Status"])
                 time_taken = round(end_time - start_time, 1)

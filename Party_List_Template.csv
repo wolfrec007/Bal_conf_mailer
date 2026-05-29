@@ -1,0 +1,4 @@
+Party Name,Email ID,CC,Contact Person,Type (AR/AP),Currency,Outstanding Balance,Due Date,Reference / Invoice No.,Remarks
+ABC Traders Pvt Ltd,accounts@abctraders.com,partner@abctraders.com,Rajesh Kumar,AR,INR,150000.00,31-Mar-2026,INV-2026-001,Kindly confirm
+XYZ Supplies Ltd,finance@xyzsupplies.com,"cfo@xyzsupplies.com, audit@xyzsupplies.com",Priya Sharma,AP,INR,75000.00,31-May-2026,PO-2026-045,
+Global Exports Co.,info@globalexports.com,,,AR,USD,5000.00,,N/A,Overseas client
