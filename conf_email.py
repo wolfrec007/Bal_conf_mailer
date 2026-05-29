@@ -369,7 +369,7 @@ with tab3:
             draft["to"]      = st.text_input("To",      value=draft["to"],      key=f"to_{i}")
             draft["cc"]      = st.text_input("CC",      value=draft["cc"],      key=f"cc_{i}")
             draft["subject"] = st.text_input("Subject", value=draft["subject"], key=f"s_{i}")
-            draft["body"]    = st.text_area("Body",     value=draft["body"],    key=f"b_{i}", height=200)
+            draft["body"]    = st.text_area("Body",     value=draft["body"],    key=f"b_{i}", height=500)
 
     st.session_state.drafts = drafts
 
